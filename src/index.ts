@@ -40,7 +40,7 @@ export default {
 
     if (url.pathname === "/webhook" && request.method === "POST") {
       try {
-        const update = await request.json();
+        const update: any = await request.json();
         ctx.waitUntil(handleUpdate(update, env.BOT_TOKEN, env.TWELVE_DATA_API_KEY));
         return new Response("OK", { status: 200 });
       } catch (error) {
@@ -72,7 +72,11 @@ export default {
 
         console.log(`Sent ${signal.direction} signal for ${symbol}`);
       } catch (error) {
-        console.error(`Error analyzing ${symbol}:`, error);
+        if (error instanceof Error) {
+          console.error(`FAILED ${symbol}: ${error.message}`);
+        } else {
+          console.error(`FAILED ${symbol}: ${String(error)}`);
+        }
       }
     }
   },

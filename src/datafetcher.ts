@@ -18,21 +18,21 @@ export async function fetchCandles(
   const response = await fetch(url);
   const text = await response.text();
 
-  console.log(`Twelve Data response for ${symbol} ${interval}:`, text.slice(0, 300));
+  console.log(`[Twelve Data] ${symbol} ${interval} status=${response.status} body=${text.slice(0, 300)}`);
 
   let data;
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Error(`Invalid JSON from Twelve Data: ${text.slice(0, 200)}`);
+    throw new Error(`Invalid JSON: ${text.slice(0, 200)}`);
   }
 
   if (data.status === "error") {
-    throw new Error(`Twelve Data error: ${data.message || "Unknown error"}`);
+    throw new Error(`Twelve Data error: ${data.message || "Unknown"}`);
   }
 
   if (!data.values || data.values.length === 0) {
-    throw new Error(`No data returned for ${symbol} at ${interval}`);
+    throw new Error(`No data for ${symbol} at ${interval}`);
   }
 
   return data.values.map((candle: any) => ({
