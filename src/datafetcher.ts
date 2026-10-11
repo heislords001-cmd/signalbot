@@ -1,6 +1,3 @@
-const TWELVE_DATA_API_KEY = "YOUR_API_KEY_HERE";
-const BASE_URL = "https://api.twelvedata.com";
-
 export interface Candle {
   datetime: string;
   open: number;
@@ -11,11 +8,12 @@ export interface Candle {
 }
 
 export async function fetchCandles(
+  apiKey: string,
   symbol: string,
   interval: string,
   outputsize: number = 100
 ): Promise<Candle[]> {
-  const url = `${BASE_URL}/time_series?symbol=${symbol}&interval=${interval}&outputsize=${outputsize}&apikey=${TWELVE_DATA_API_KEY}`;
+  const url = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=${interval}&outputsize=${outputsize}&apikey=${apiKey}`;
 
   const response = await fetch(url);
   const data = await response.json();

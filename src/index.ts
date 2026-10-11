@@ -1,6 +1,5 @@
-import { Bot, webhookCallback } from "grammy";
-import { createBot } from "./bot";
-import { analyzeSymbol, Signal } from "./signalEngine";
+import { handleUpdate } from "./bot";
+import { analyzeSymbol } from "./signalengine";
 
 export interface Env {
   BOT_TOKEN: string;
@@ -8,76 +7,67 @@ export interface Env {
   SIGNAL_CHANNEL_ID: string;
 }
 
-// The three main instruments
+const TELEGRAM_API = "https://api.telegram.org/bot";
 const MAIN_SYMBOLS = ["XAU/USD", "BTC/USD", "EUR/USD"];
 
-// Track the last signal sent for each symbol to avoid duplicates
 const lastSignals: Record<string, string> = {};
 
-async function sendToChannel(bot: Bot, channelId: string, signal: Signal) {
+async function sendToChannel(token: string, channelId: string, signal: any) {
   const emoji = signal.direction === "BUY" ? "🟢" : "🔴";
   const arrow = signal.direction === "BUY" ? "📈" : "📉";
 
-  const message = `
-${emoji} *${signal.direction} ${signal.symbol}* ${arrow}
+  const message = `${emoji} *${signal.direction} ${signal.symbol}* ${arrow}\n\n*Entry:* \`${signal.entry}\`\n*Stop Loss:* \`${signal.stopLoss}\`\n*Take Profit:* \`${signal.takeProfit}\`\n*Risk/Reward:* 1:${signal.riskReward}\n\n*Confidence:* ${signal.confidence}%\n\n*Why:*\n${signal.reasons.map((r: string) => `• ${r}`).join("\n")}`;
 
-*Entry:* \`${signal.entry}\`
-*Stop Loss:* \`${signal.stopLoss}\`
-*Take Profit:* \`${signal.takeProfit}\`
-*Risk/Reward:* 1:${signal.riskReward}
-
-*Confidence:* ${signal.confidence}%
-
-*Why:*
-${signal.reasons.map((r) => `• ${r}`).join("\n")}
-`.trim();
-
-  await bot.api.sendMessage(channelId, message, { parse_mode: "Markdown" });
+  await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: channelId,
+      text: message,
+      parse_mode: "Markdown",
+      disable_web_page_preview: true,
+    }),
+  });
 }
 
 export default {
-  // HTTP handler for Telegram webhook
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const bot = createBot(env.BOT_TOKEN, env.TWELVE_DATA_API_KEY);
-    const handler = webhookCallback(bot, "cloudflare-mod");
-
     const url = new URL(request.url);
 
-    // Health check
     if (url.pathname === "/health") {
       return new Response("OK", { status: 200 });
     }
 
-    // Telegram webhook
-    if (url.pathname === "/webhook") {
-      return handler(request);
+    if (url.pathname === "/webhook" && request.method === "POST") {
+      try {
+        const update = await request.json();
+        ctx.waitUntil(handleUpdate(update, env.BOT_TOKEN, env.TWELVE_DATA_API_KEY));
+        return new Response("OK", { status: 200 });
+      } catch (error) {
+        console.error("Webhook error:", error);
+        return new Response("Error", { status: 500 });
+      }
     }
 
     return new Response("Not found", { status: 404 });
   },
 
-  // Cron trigger handler — runs every 15 minutes
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    const bot = createBot(env.BOT_TOKEN, env.TWELVE_DATA_API_KEY);
-
     for (const symbol of MAIN_SYMBOLS) {
       try {
         const signal = await analyzeSymbol(env.TWELVE_DATA_API_KEY, symbol);
 
         if (!signal) {
-          // No signal, clear the tracker so the next one can fire
           delete lastSignals[symbol];
           continue;
         }
 
-        // Check if this signal is different from the last one
         const signalKey = `${signal.direction}-${signal.entry}`;
         if (lastSignals[symbol] === signalKey) {
-          continue; // Already sent this exact signal, skip
+          continue;
         }
 
-        // Send to channel
-        await sendToChannel(bot, env.SIGNAL_CHANNEL_ID, signal);
+        await sendToChannel(env.BOT_TOKEN, env.SIGNAL_CHANNEL_ID, signal);
         lastSignals[symbol] = signalKey;
 
         console.log(`Sent ${signal.direction} signal for ${symbol}`);
