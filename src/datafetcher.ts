@@ -16,10 +16,19 @@ export async function fetchCandles(
   const url = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=${interval}&outputsize=${outputsize}&apikey=${apiKey}`;
 
   const response = await fetch(url);
-  const data = await response.json();
+  const text = await response.text();
+
+  console.log(`Twelve Data response for ${symbol} ${interval}:`, text.slice(0, 300));
+
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Invalid JSON from Twelve Data: ${text.slice(0, 200)}`);
+  }
 
   if (data.status === "error") {
-    throw new Error(`Twelve Data error: ${data.message}`);
+    throw new Error(`Twelve Data error: ${data.message || "Unknown error"}`);
   }
 
   if (!data.values || data.values.length === 0) {
