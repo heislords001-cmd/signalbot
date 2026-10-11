@@ -13,12 +13,19 @@ export async function fetchCandles(
   interval: string,
   outputsize: number = 100
 ): Promise<Candle[]> {
+  // DEBUG: log the key details so we can see what Cloudflare is actually sending
+  console.log(
+    `[DEBUG KEY] symbol=${symbol} interval=${interval} length=${apiKey?.length} start=${apiKey?.slice(0, 8)} end=${apiKey?.slice(-4)}`
+  );
+
   const url = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=${interval}&outputsize=${outputsize}&apikey=${apiKey}`;
 
   const response = await fetch(url);
   const text = await response.text();
 
-  console.log(`[Twelve Data] ${symbol} ${interval} status=${response.status} body=${text.slice(0, 300)}`);
+  console.log(
+    `[Twelve Data] ${symbol} ${interval} status=${response.status} body=${text.slice(0, 300)}`
+  );
 
   let data;
   try {
